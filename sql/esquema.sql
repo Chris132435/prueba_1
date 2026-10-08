@@ -1,16 +1,3 @@
--- Esquema SQLite de la base local de anuncios de Admetricks.
--- El script lo aplica solo (python main.py --update / --formateo); este archivo es de referencia
--- para crear la base a mano:  sqlite3 data/admetricks.db < sql/esquema.sql
---
--- Cambios respecto del CREATE TABLE original:
---   * "Omitible Video" e Impacto pasan a INTEGER (en el export son siempre números enteros).
---   * fecha_cast: la Fecha convertida a yyyy-mm-dd (paso 1), para filtrar y agrupar por mes.
---   * archivo_origen e id_carga: de qué archivo y de qué carga vino cada fila.
---   * Tabla cargas: un registro por cada --update / --formateo.
---   * Tabla descargas: los anuncios del paso 3 con la ruta local del archivo (no el archivo).
---   * Índices para las consultas por marca, fecha y anuncio.
---   * Vista v_anuncios_cpm: CPM y cpm_delta (paso 2) calculados al consultar.
-
 CREATE TABLE IF NOT EXISTS anuncios (
     ID INTEGER PRIMARY KEY AUTOINCREMENT,
     "Fecha" TEXT,
@@ -54,8 +41,6 @@ CREATE TABLE IF NOT EXISTS cargas (
     filas_insertadas INTEGER,
     filas_borradas INTEGER
 );
--- Paso 3: un registro por anuncio seleccionado en cada ejecución. Solo se guarda la ruta del
--- archivo descargado en el equipo (ruta_local), no la imagen o el video.
 CREATE TABLE IF NOT EXISTS descargas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     id_ejecucion INTEGER NOT NULL,
@@ -86,8 +71,6 @@ CREATE INDEX IF NOT EXISTS ix_anuncios_marca_fecha ON anuncios(Marca, fecha_cast
 CREATE INDEX IF NOT EXISTS ix_anuncios_advertisement ON anuncios(Advertisement);
 CREATE INDEX IF NOT EXISTS ix_anuncios_id_carga ON anuncios(id_carga);
 
--- Paso 2 dentro de la base: CPM y cpm_delta se calculan al consultar, así siempre están
--- al día aunque se agreguen filas del mismo mes y marca con --update.
 DROP VIEW IF EXISTS v_anuncios_cpm;
 CREATE VIEW v_anuncios_cpm AS
 WITH base AS (

@@ -1,22 +1,3 @@
-"""Respaldo de la base SQLite local en PostgreSQL en la nube (Neon).
-
-``python main.py --respaldo-nube`` deja en la nube una copia exacta de las tablas locales
-``cargas``, ``anuncios`` y ``descargas``:
-
-1. Crea en PostgreSQL las tablas que falten, con las mismas columnas que en SQLite (y agrega
-   columnas nuevas si el esquema local creció).
-2. En una sola transacción: vacía las tablas en la nube y copia todas las filas locales con
-   ``COPY`` (rápido incluso por internet). Si algo falla, la nube queda como estaba.
-3. Recrea las vistas ``v_anuncios_cpm`` (cpm_delta) y ``v_descargas_ultimas`` y anota el
-   respaldo en la tabla ``respaldos``.
-
-De las descargas solo viaja la ruta local del archivo: las imágenes y videos no se suben.
-
-La conexión se toma de ``NEON_DATABASE_URL`` (archivo ``.env`` o variable de entorno), con
-el formato que muestra la consola de Neon en *Connect*:
-``postgresql://usuario:contraseña@ep-xxxx.region.aws.neon.tech/neondb?sslmode=require``.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -64,7 +45,6 @@ CREATE TABLE IF NOT EXISTS respaldos (
 
 
 def ocultar_url(url: str) -> str:
-    """URL de conexión sin la contraseña, para logs y resúmenes."""
     partes = urlsplit(url)
     usuario = partes.username or ""
     host = partes.hostname or ""
@@ -92,7 +72,6 @@ def _columnas_sqlite(con: sqlite3.Connection, tabla: str) -> list[tuple[str, str
 
 
 def respaldar(ruta_db: str | Path, url: str) -> dict:
-    """Copia las tablas de la base SQLite ``ruta_db`` a la base PostgreSQL ``url``."""
     import platform
 
     import psycopg
@@ -151,7 +130,6 @@ def respaldar(ruta_db: str | Path, url: str) -> dict:
                      filas.get("descargas"), duracion),
                 )
 
-            # Verificación después del commit: la nube debe tener lo mismo que la base local.
             with pg.cursor() as cur:
                 en_nube = {}
                 for tabla in tablas:

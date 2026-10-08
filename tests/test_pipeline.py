@@ -23,8 +23,6 @@ from admetricks_pipeline.descargas import nombre_archivo
 CHROMIUM = os.environ.get("CHROMIUM_PATH", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
 
 
-# ---------- 1) fechas ----------
-
 def test_convertir_fechas_formatos_variados():
     serie = pd.Series(
         [
@@ -34,8 +32,8 @@ def test_convertir_fechas_formatos_variados():
             "2026-01-15T23:59:59-05:00",
             "15/01/2026",
             "5-1-2026 10:00",
-            "46037",  # serial de Excel = 2026-01-15
-            "31/02/2026",  # fecha imposible
+            "46037",
+            "31/02/2026",
         ]
     )
     r = convertir_fechas(serie)
@@ -74,8 +72,6 @@ def test_periodo_desde_nombre(nombre, esperado):
     assert (None if fecha is None else str(fecha.date())) == esperado
 
 
-# ---------- 2) costos ----------
-
 def _df_costos():
     return pd.DataFrame(
         {
@@ -95,14 +91,11 @@ def test_cpm_delta_agrega_solo_esa_columna():
 
 def test_cpm_delta_simple_ejemplo_enunciado():
     r = detalle_cpm(_df_costos())
-    # marca a, enero: CPMs 5.84 y 12.56 -> promedio 9.20; delta fila 0 = 9.20 - 5.84 = 3.36
     assert r.loc[0, "cpm"] == pytest.approx(5.84)
     assert r.loc[0, "cpm_promedio"] == pytest.approx(9.20)
     assert r.loc[0, "cpm_delta"] == pytest.approx(3.36)
     assert r.loc[1, "cpm_delta"] == pytest.approx(-3.36)
-    # febrero es otro grupo
     assert r.loc[2, "cpm_delta"] == pytest.approx(0)
-    # sin impresiones: CPM indefinido, no contamina el promedio de su grupo
     assert pd.isna(r.loc[4, "cpm"]) and pd.isna(r.loc[4, "cpm_delta"])
     assert r.loc[3, "cpm_promedio"] == pytest.approx(3.0)
     assert calcular_cpm_delta(_df_costos())["cpm_delta"].equals(r["cpm_delta"])
@@ -110,7 +103,6 @@ def test_cpm_delta_simple_ejemplo_enunciado():
 
 def test_cpm_delta_ponderado():
     r = detalle_cpm(_df_costos(), metodo="ponderado")
-    # (5.84 + 25.12) / 3000 * 1000 = 10.32
     assert r.loc[0, "cpm_promedio"] == pytest.approx(10.32)
     assert r.loc[0, "cpm_delta"] == pytest.approx(10.32 - 5.84)
 
@@ -121,11 +113,8 @@ def test_cpm_acepta_apostrofo_y_nombre_alternativo():
     assert calcular_cpm_delta(df).loc[0, "cpm_delta"] == pytest.approx(3.36)
 
 
-# ---------- 3) selección de anuncios ----------
-
 def _df_anuncios():
     filas = []
-    # marca a: u1..u5 se repiten más (4..1 veces... ) y u6 tiene muchas impresiones pero 1 sola fila
     for url, reps, impr in [("u1", 6, 10), ("u2", 5, 30), ("u3", 4, 50), ("u4", 3, 5), ("u5", 2, 400), ("u6", 1, 9999)]:
         filas += [{"Marca": "a", "Advertisement": url, "Impresiones": impr}] * reps
     filas += [{"Marca": "b", "Advertisement": "u9", "Impresiones": 5}]
@@ -135,8 +124,6 @@ def _df_anuncios():
 def test_top_anuncios_por_impresiones_por_defecto():
     top = seleccionar_top_anuncios(_df_anuncios(), n=3)
     a = top[top.marca == "a"]
-    # los 3 con más impresiones de la marca, sin importar cuántas veces se repiten:
-    # u6 = 9999, u5 = 2*400 = 800, u3 = 4*50 = 200
     assert a["advertisement"].tolist() == ["u6", "u5", "u3"]
     assert a["impresiones"].tolist() == [9999, 800, 200]
     assert a["ranking"].tolist() == [1, 2, 3]
@@ -146,8 +133,6 @@ def test_top_anuncios_por_impresiones_por_defecto():
 def test_top_anuncios_con_filtro_opcional_de_repetidas():
     top = seleccionar_top_anuncios(_df_anuncios(), n=3, candidatos=5)
     a = top[top.marca == "a"]
-    # u6 no pasa el filtro 1 (solo 1 repetición); entre u1..u5 ganan por impresiones totales:
-    # u5 = 2*400 = 800, u3 = 4*50 = 200, u2 = 5*30 = 150
     assert a["advertisement"].tolist() == ["u5", "u3", "u2"]
     assert a["impresiones"].tolist() == [800, 200, 150]
     assert a["ranking"].tolist() == [1, 2, 3]
@@ -166,8 +151,6 @@ def test_nombre_archivo_seguro():
     assert nombre_archivo("https://x.com/../../etc/pass%20wd") == "pass_wd"
     assert len(nombre_archivo("https://x.com/")) == 16
 
-
-# ---------- 3) navegador ----------
 
 @pytest.mark.parametrize(
     "texto, esperado",
@@ -196,7 +179,6 @@ def test_elegir_navegador_prefiere_el_predeterminado(monkeypatch):
     monkeypatch.setattr(nav, "navegador_por_defecto", lambda: "brave")
     assert nav.elegir_navegador().nombre == "brave"
 
-    # predeterminado no soportado: se usa el primero instalado entre Brave y Edge
     monkeypatch.setattr(nav, "navegador_por_defecto", lambda: "firefox")
     elegido = nav.elegir_navegador()
     assert elegido.nombre == "brave" and "firefox" in elegido.motivo
@@ -205,8 +187,6 @@ def test_elegir_navegador_prefiere_el_predeterminado(monkeypatch):
     assert nav.elegir_navegador().nombre == "edge"
     assert nav.elegir_navegador("brave") is None
 
-
-# ---------- descargas (servidor local) ----------
 
 class _Manejador(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
@@ -239,7 +219,6 @@ def sin_proxy(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def entorno_aislado(monkeypatch, tmp_path):
-    """Las pruebas nunca tocan la base local real ni la nube configurada en .env."""
     monkeypatch.setenv("ADMETRICKS_DB", str(tmp_path / "pruebas.db"))
     monkeypatch.setenv("NEON_DATABASE_URL", "")
 
@@ -265,7 +244,6 @@ def test_descargar_anuncios_http(servidor, tmp_path):
     assert "404" in m.loc[2, "error"]
     assert not list(destino.rglob("*.part"))
 
-    # segunda corrida: idempotente
     m2 = descargar_anuncios(_top(url), destino, workers=2, reintentos=0)
     assert m2["estado"].tolist() == ["existente", "existente", "error", "existente"]
 
@@ -291,8 +269,6 @@ def test_descargar_con_navegador_en_orden(servidor, tmp_path):
     m2 = nav.descargar_con_navegador(_top(url), destino, navegador, timeout=20, reintentos=0, oculto=True)
     assert m2["estado"].tolist() == ["existente", "existente", "error", "existente"]
 
-
-# ---------- CLI ----------
 
 def _csv_prueba(tmp_path, url):
     csv = tmp_path / "2026-10-Admetricks-Prueba.csv"
@@ -338,7 +314,6 @@ def test_resume_sin_ejecuciones(tmp_path, capsys):
 
 
 def test_cli_sin_consola(servidor, tmp_path, monkeypatch):
-    """Simula pythonw: sin stdout ni stderr, igual procesa y deja todo en archivos."""
     url, _ = servidor
     csv = _csv_prueba(tmp_path, url)
     salida = tmp_path / "out"
@@ -356,12 +331,10 @@ def test_cli_registra_fallo(tmp_path):
     assert "FALLÓ" in (salida / "resumen_ejecucion.txt").read_text(encoding="utf-8")
 
 
-# ---------- base de datos SQLite (--update / --formateo) ----------
+import sqlite3
 
-import sqlite3  # noqa: E402
-
-from admetricks_pipeline.basedatos import esquema_sql  # noqa: E402
-from admetricks_pipeline.lectura import leer_tabla  # noqa: E402
+from admetricks_pipeline.basedatos import esquema_sql
+from admetricks_pipeline.lectura import leer_tabla
 
 _ESQUEMA_USUARIO = """CREATE TABLE anuncios (
     ID INTEGER PRIMARY KEY AUTOINCREMENT, Fecha TEXT, Industria TEXT, Marca TEXT, Anunciante TEXT,
@@ -393,10 +366,8 @@ def _consulta(db, sql):
 def test_update_agrega_siempre_filas_nuevas(tmp_path):
     csv, db, salida = _csv_bd(tmp_path), tmp_path / "a.db", tmp_path / "out"
     assert main([str(csv), "--update", "--db", str(db), "--salida", str(salida)]) == 0
-    # las dos filas idénticas del archivo se guardan las dos
     assert _consulta(db, "SELECT ID FROM anuncios ORDER BY ID") == [(1,), (2,), (3,)]
 
-    # repetir --update con el mismo archivo agrega todo de nuevo con ID nuevos
     assert main([str(csv), "--update", "--db", str(db), "--salida", str(salida)]) == 0
     assert _consulta(db, "SELECT MIN(ID), MAX(ID), COUNT(*) FROM anuncios") == [(1, 6, 6)]
     assert _consulta(db, "SELECT id_carga, COUNT(*) FROM anuncios GROUP BY id_carga") == [(1, 3), (2, 3)]
@@ -454,7 +425,6 @@ def test_vista_cpm_delta_igual_al_pipeline(tmp_path):
     csv, db = _csv_bd(tmp_path), tmp_path / "a.db"
     main([str(csv), "--update", "--db", str(db), "--salida", str(tmp_path / "out")])
     deltas = [round(d, 6) for (d,) in _consulta(db, "SELECT cpm_delta FROM v_anuncios_cpm ORDER BY ID")]
-    # CPMs 5.84, 5.84, 12.56 -> promedio 8.08
     assert deltas == [2.24, 2.24, -4.48]
 
 
@@ -469,9 +439,7 @@ def test_leer_tabla_csv_con_punto_y_coma(tmp_path):
     assert leer_tabla(csv).columns.tolist() == ["Fecha", "Marca", "Impresiones"]
 
 
-# ---------- descargas en la base y respaldo en la nube ----------
-
-from admetricks_pipeline.nube import ocultar_url  # noqa: E402
+from admetricks_pipeline.nube import ocultar_url
 
 PG_TEST_URL = os.environ.get("ADMETRICKS_PG_TEST_URL")
 requiere_pg = pytest.mark.skipif(not PG_TEST_URL, reason="define ADMETRICKS_PG_TEST_URL para probar contra PostgreSQL")
@@ -486,9 +454,8 @@ def test_pipeline_registra_descargas_con_ruta_local(servidor, tmp_path):
     filas = _consulta(db, "SELECT marca, ranking, estado, ruta_local, bytes, sha256, modo FROM descargas ORDER BY marca, ranking")
     assert [(m, r, e) for m, r, e, *_ in filas] == [("a", 1, "descargado"), ("a", 2, "descargado"), ("b", 1, "descargado")]
     for _, _, _, ruta, tam, sha, modo in filas:
-        assert Path(ruta).is_absolute() and Path(ruta).exists()  # solo la ruta; el archivo queda en disco
+        assert Path(ruta).is_absolute() and Path(ruta).exists()
         assert tam > 0 and len(sha) == 64 and modo == "http"
-    # la segunda ejecución agrega otro registro por anuncio; la vista muestra solo la última
     assert main(args) == 0
     assert _consulta(db, "SELECT COUNT(*) FROM descargas") == [(6,)]
     assert _consulta(db, "SELECT COUNT(*), MIN(estado) FROM v_descargas_ultimas") == [(3, "existente")]
@@ -537,7 +504,7 @@ def test_respaldo_nube_copia_y_reemplaza(servidor, tmp_path, pg_limpia, capsys):
 
     assert main(["--respaldo-nube", "--db", str(db), "--neon-url", pg_limpia, "--salida", str(salida)]) == 0
     with psycopg.connect(pg_limpia) as con:
-        cuenta = lambda t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]  # noqa: E731
+        cuenta = lambda t: con.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
         assert (cuenta("anuncios"), cuenta("cargas"), cuenta("descargas"), cuenta("respaldos")) == (3, 1, 3, 1)
         fila = con.execute('SELECT "ID", "Marca", fecha_cast, "Impresiones", "Valorización Local" '
                            'FROM anuncios ORDER BY "ID" LIMIT 1').fetchone()
@@ -547,7 +514,6 @@ def test_respaldo_nube_copia_y_reemplaza(servidor, tmp_path, pg_limpia, capsys):
         rutas = [r for (r,) in con.execute("SELECT ruta_local FROM descargas")]
         assert all(r and Path(r).is_absolute() for r in rutas)
 
-    # más datos locales y un segundo respaldo: la nube queda igual a la base local, sin duplicar
     main([str(csv), "--update", "--db", str(db), "--salida", str(salida)])
     assert main(["--respaldo-nube", "--db", str(db), "--neon-url", pg_limpia, "--salida", str(salida)]) == 0
     with psycopg.connect(pg_limpia) as con:
@@ -558,7 +524,7 @@ def test_respaldo_nube_copia_y_reemplaza(servidor, tmp_path, pg_limpia, capsys):
     main(["--resume", "--salida", str(salida)])
     resumen = capsys.readouterr().out
     assert "RESPALDO EN LA NUBE" in resumen and "anuncios                   : 6 filas" in resumen
-    assert "***" not in resumen or "@" not in resumen  # nunca muestra la contraseña
+    assert "***" not in resumen or "@" not in resumen
 
 
 @requiere_pg
@@ -569,7 +535,6 @@ def test_respaldo_fallido_no_toca_la_nube(tmp_path, pg_limpia):
     main([str(csv), "--update", "--db", str(db), "--salida", str(salida)])
     assert main(["--respaldo-nube", "--db", str(db), "--neon-url", pg_limpia, "--salida", str(salida)]) == 0
 
-    # un valor que PostgreSQL no acepta en una columna numérica hace fallar el COPY a mitad
     con = sqlite3.connect(db)
     con.execute("UPDATE anuncios SET Impresiones = 'no es número' WHERE ID = 2")
     con.execute("INSERT INTO cargas (fecha, modo, archivo) VALUES ('x', 'update', 'y')")
@@ -577,11 +542,9 @@ def test_respaldo_fallido_no_toca_la_nube(tmp_path, pg_limpia):
     con.close()
     assert main(["--respaldo-nube", "--db", str(db), "--neon-url", pg_limpia, "--salida", str(salida)]) == 2
     with psycopg.connect(pg_limpia) as pg:
-        assert pg.execute("SELECT COUNT(*) FROM cargas").fetchone()[0] == 1  # sigue el respaldo anterior
+        assert pg.execute("SELECT COUNT(*) FROM cargas").fetchone()[0] == 1
         assert pg.execute("SELECT COUNT(*) FROM anuncios").fetchone()[0] == 3
 
-
-# ---------- respaldo automático al final de python main.py ----------
 
 def _correr_pipeline(tmp_path, url, *extra):
     csv = _csv_prueba(tmp_path, url)
@@ -602,9 +565,9 @@ def test_pipeline_respaldo_fallido_no_deshace_descargas(servidor, tmp_path, caps
     url, _ = servidor
     neon_caido = "postgresql://usuario:secreta@127.0.0.1:1/neondb?connect_timeout=2"
     codigo, salida = _correr_pipeline(tmp_path, url, "--neon-url", neon_caido)
-    assert codigo == 1  # el scheduler se entera de que el respaldo falló
+    assert codigo == 1
     manifiesto = pd.read_csv(salida / "2026-10-Admetricks-Prueba_top_anuncios.csv", encoding="utf-8-sig")
-    assert set(manifiesto["estado"]) == {"descargado"}  # las descargas siguen hechas
+    assert set(manifiesto["estado"]) == {"descargado"}
     capsys.readouterr()
     main(["--resume", "--salida", str(salida)])
     resumen = capsys.readouterr().out
@@ -630,10 +593,7 @@ def test_pipeline_respalda_en_la_nube_al_terminar(servidor, tmp_path, pg_limpia)
     assert "descargas                  : 3 filas" in (salida / "resumen_ejecucion.txt").read_text(encoding="utf-8")
 
 
-# ---------- python main.py sin archivo: procesa todos los archivos nuevos ----------
-
 def _csv_mes(carpeta, mes, url, marca="a"):
-    """CSV mínimo de un mes; el contenido cambia con el mes (distinto sha256)."""
     csv = carpeta / f"2026-{mes:02d}-Admetricks-Prueba.csv"
     pd.DataFrame(
         {
@@ -657,11 +617,10 @@ def test_procesa_todos_los_archivos_nuevos_y_los_recuerda(servidor, tmp_path, ca
     raw = tmp_path / "raw"
     raw.mkdir()
     oct_, nov = _csv_mes(raw, 10, url), _csv_mes(raw, 11, url)
-    os.utime(oct_, (1_000_000, 1_000_000))  # octubre es el más antiguo
+    os.utime(oct_, (1_000_000, 1_000_000))
     db = tmp_path / "local.db"
 
     assert _main_nuevos(tmp_path) == 0
-    # los dos archivos se cargaron a la base, en orden (octubre primero) y pasaron por los pasos 1-3
     assert _consulta(db, "SELECT archivo FROM cargas ORDER BY id") == [(str(oct_),), (str(nov),)]
     assert _consulta(db, "SELECT COUNT(*), MIN(fecha_cast), MAX(fecha_cast) FROM anuncios") == [(4, "2026-10-05", "2026-11-06")]
     assert _consulta(db, "SELECT COUNT(DISTINCT id_ejecucion), COUNT(*) FROM descargas") == [(2, 4)]
@@ -673,7 +632,6 @@ def test_procesa_todos_los_archivos_nuevos_y_los_recuerda(servidor, tmp_path, ca
     resumen = capsys.readouterr().out
     assert "ARCHIVO 1 de 2" in resumen and "ARCHIVO 2 de 2" in resumen
 
-    # segunda ejecución: no hay nada nuevo, no se agrega nada
     assert _main_nuevos(tmp_path) == 0
     assert _consulta(db, "SELECT COUNT(*) FROM cargas") == [(2,)]
     assert _consulta(db, "SELECT COUNT(*) FROM anuncios") == [(4,)]
@@ -681,7 +639,6 @@ def test_procesa_todos_los_archivos_nuevos_y_los_recuerda(servidor, tmp_path, ca
     main(["--resume", "--salida", str(tmp_path / "out")])
     assert "no había archivos nuevos" in capsys.readouterr().out
 
-    # una copia renombrada no se repite; un archivo nuevo de diciembre sí se procesa
     (raw / "copia_de_octubre.csv").write_bytes(oct_.read_bytes())
     dic = _csv_mes(raw, 12, url)
     assert _main_nuevos(tmp_path) == 0
@@ -695,14 +652,14 @@ def test_archivo_que_falla_queda_pendiente(servidor, tmp_path):
     raw.mkdir()
     bueno = _csv_mes(raw, 10, url)
     roto = raw / "2026-11-roto.csv"
-    roto.write_text("Fecha,Marca\n2026-11-01,a\n", encoding="utf-8")  # no tiene Impresiones
+    roto.write_text("Fecha,Marca\n2026-11-01,a\n", encoding="utf-8")
     db = tmp_path / "local.db"
 
-    assert _main_nuevos(tmp_path) == 2  # un archivo falló
-    assert _consulta(db, "SELECT archivo FROM cargas") == [(str(bueno),)]  # el roto no se marca como cargado
+    assert _main_nuevos(tmp_path) == 2
+    assert _consulta(db, "SELECT archivo FROM cargas") == [(str(bueno),)]
 
     from admetricks_pipeline.basedatos import archivos_pendientes
-    assert archivos_pendientes(raw, db) == [roto]  # se reintenta en la próxima ejecución
+    assert archivos_pendientes(raw, db) == [roto]
 
 
 def test_ultimo_procesa_el_mas_reciente_sin_cargarlo(servidor, tmp_path):
@@ -715,10 +672,7 @@ def test_ultimo_procesa_el_mas_reciente_sin_cargarlo(servidor, tmp_path):
     assert (tmp_path / "out" / "2026-10-Admetricks-Prueba_top_anuncios.csv").exists()
 
 
-# ---------- python main.py --formateo sin archivo: reemplazo completo ----------
-
 def _base_con_dummy(tmp_path, url):
-    """Base con datos 'dummy' cargados dos veces (6 filas)."""
     dummy = tmp_path / "2026-09-dummy.csv"
     pd.DataFrame({"Fecha": ["2026-09-01"] * 3, "Marca": ["vieja"] * 3,
                   "Advertisement": [f"{url}/banner_1.jpg"] * 3, "Impresiones": ["1", "2", "3"],
@@ -738,14 +692,12 @@ def test_formateo_completo_reemplaza_con_todos_los_archivos(servidor, tmp_path, 
     os.utime(oct_, (1_000_000, 1_000_000))
 
     assert _main_nuevos(tmp_path, "--formateo") == 0
-    # solo quedan los datos reales, con ID desde 1, en orden (octubre primero)
     assert _consulta(db, 'SELECT MIN(ID), MAX(ID), COUNT(*) FROM anuncios') == [(1, 4, 4)]
     assert _consulta(db, "SELECT DISTINCT Marca FROM anuncios") == [("real",)]
     assert _consulta(db, "SELECT archivo_origen, MIN(ID) FROM anuncios GROUP BY 1 ORDER BY 2") == [
         (oct_.name, 1), (nov.name, 3)]
     assert _consulta(db, "SELECT modo, filas_borradas FROM cargas WHERE modo = 'formateo' ORDER BY id") == [
         ("formateo", 6), ("formateo", 0)]
-    # pasos 1-3 de cada archivo
     for f in (oct_, nov):
         assert (tmp_path / "out" / f"{f.stem}_top_anuncios.csv").exists()
     capsys.readouterr()
@@ -754,7 +706,6 @@ def test_formateo_completo_reemplaza_con_todos_los_archivos(servidor, tmp_path, 
     assert "ARCHIVO 2 de 2" in resumen and "--formateo (borrar y recargar)" in resumen
     assert "Filas borradas             : 6 (ID reiniciado)" in resumen
 
-    # después del formateo, esos archivos ya cuentan como cargados
     assert _main_nuevos(tmp_path) == 0
     assert _consulta(db, "SELECT COUNT(*) FROM anuncios") == [(4,)]
 
@@ -768,7 +719,7 @@ def test_formateo_con_un_archivo_roto_no_borra_nada(servidor, tmp_path, capsys):
     (raw / "2026-11-roto.csv").write_text("Fecha,Marca\n2026-11-01,a\n", encoding="utf-8")
 
     assert _main_nuevos(tmp_path, "--formateo") == 2
-    assert _consulta(db, "SELECT COUNT(*), MIN(Marca) FROM anuncios") == [(6, "vieja")]  # intacta
+    assert _consulta(db, "SELECT COUNT(*), MIN(Marca) FROM anuncios") == [(6, "vieja")]
     capsys.readouterr()
     main(["--resume", "--salida", str(tmp_path / "out")])
     assert "Formateo cancelado" in capsys.readouterr().out

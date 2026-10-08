@@ -17,7 +17,6 @@ jobs:
       matrix:
         python: ["3.12", "3.13"]
     services:
-      # PostgreSQL desechable para probar el respaldo en la nube (no es Neon ni usa credenciales reales).
       postgres:
         image: postgres:16
         env:

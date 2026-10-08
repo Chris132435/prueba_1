@@ -1,6 +1,3 @@
--- Top 3 anuncios con más impresiones de cada marca (paso 3) · SQLite (base local)
--- Un anuncio es una URL única de "Advertisement": se suman las impresiones de todas sus filas.
--- Da los mismos anuncios que descarga el pipeline (output/top_anuncios.csv).
 WITH por_anuncio AS (
     SELECT "Marca", "Advertisement",
            COUNT(*)           AS repeticiones,

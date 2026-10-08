@@ -1,16 +1,3 @@
-"""Paso 3 (descarga): abre cada anuncio en Brave o Edge, uno por uno, y lo descarga.
-
-1. Se detecta el navegador predeterminado del sistema (Windows, macOS o Linux).
-2. Si es Brave o Edge se usa ese; si no, el primero instalado entre Brave y Edge.
-3. Se abre el navegador (con un perfil temporal, sin tocar el del usuario) y, en orden,
-   para cada anuncio: se abre una pestaña con la URL, el propio navegador descarga el
-   archivo, se espera a que la descarga termine, se cierra la pestaña y se pasa al
-   siguiente. Al final se cierra el navegador.
-
-El control del navegador se hace con Playwright (protocolo DevTools de Chromium, que Brave
-y Edge comparten), usando el ejecutable instalado: no descarga navegadores propios.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -51,8 +38,6 @@ _EJECUTABLES = {
     },
 }
 
-# Descarga el documento abierto en la pestaña usando la red del propio navegador.
-# Es la misma URL de la pestaña (mismo origen), así que no hay bloqueo CORS.
 _JS_DESCARGAR = """async (nombre) => {
     document.querySelectorAll('video, audio').forEach(m => { try { m.pause(); } catch (e) {} });
     const resp = await fetch(location.href, {cache: 'force-cache'});
@@ -68,14 +53,13 @@ _JS_DESCARGAR = """async (nombre) => {
 
 @dataclass
 class Navegador:
-    nombre: str  # brave, edge o personalizado
+    nombre: str
     ejecutable: str
-    por_defecto: str | None  # navegador predeterminado detectado en el sistema
+    por_defecto: str | None
     motivo: str
 
 
 def identificar(texto: str | None) -> str | None:
-    """Traduce un ProgId / bundle id / .desktop a un nombre corto de navegador."""
     t = (texto or "").strip().lower()
     if not t:
         return None
@@ -96,7 +80,6 @@ def identificar(texto: str | None) -> str | None:
 
 
 def navegador_por_defecto() -> str | None:
-    """Nombre corto del navegador predeterminado del sistema, o None si no se pudo detectar."""
     sistema = platform.system()
     try:
         if sistema == "Windows":
@@ -133,7 +116,6 @@ def navegador_por_defecto() -> str | None:
 
 
 def buscar_ejecutable(nombre: str) -> str | None:
-    """Ruta del ejecutable de ``nombre`` (brave/edge) instalado en este equipo."""
     for candidato in _EJECUTABLES.get(nombre, {}).get(platform.system(), []):
         ruta = os.path.expandvars(candidato)
         if os.path.isabs(ruta):
@@ -145,13 +127,6 @@ def buscar_ejecutable(nombre: str) -> str | None:
 
 
 def elegir_navegador(preferencia: str = "auto", ruta: str | None = None) -> Navegador | None:
-    """Elige el navegador con el que se harán las descargas.
-
-    - ``ruta``: usa ese ejecutable (cualquier navegador basado en Chromium).
-    - ``preferencia`` = brave / edge: usa ese, si está instalado.
-    - ``auto``: el predeterminado del sistema si es Brave o Edge; si no, el primero
-      instalado entre Brave y Edge.
-    """
     por_defecto = navegador_por_defecto()
     if ruta:
         return Navegador("personalizado", ruta, por_defecto, "ruta indicada con --navegador-ruta")
@@ -184,7 +159,6 @@ def elegir_navegador(preferencia: str = "auto", ruta: str | None = None) -> Nave
 
 
 def _descargar_en_pestana(contexto, url: str, archivo: Path, timeout_ms: float) -> None:
-    """Abre ``url`` en una pestaña nueva, la descarga con el navegador y espera a que termine."""
     from playwright.sync_api import Error as PlaywrightError
 
     pagina = contexto.new_page()
@@ -194,7 +168,6 @@ def _descargar_en_pestana(contexto, url: str, archivo: Path, timeout_ms: float) 
             try:
                 resp = pagina.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
             except PlaywrightError as exc:
-                # El servidor mandó el archivo como adjunto: la navegación ya es la descarga.
                 if "Download is starting" not in str(exc):
                     raise
             else:
@@ -202,7 +175,7 @@ def _descargar_en_pestana(contexto, url: str, archivo: Path, timeout_ms: float) 
                     raise RuntimeError(f"HTTP {resp.status} {resp.status_text}")
                 pagina.evaluate(_JS_DESCARGAR, archivo.name)
         descarga = info.value
-        descarga.save_as(temporal)  # bloquea hasta que la descarga termina
+        descarga.save_as(temporal)
         if descarga.failure():
             raise RuntimeError(f"descarga fallida: {descarga.failure()}")
     except Exception:
@@ -221,8 +194,6 @@ def descargar_con_navegador(
     sobrescribir: bool = False,
     oculto: bool = False,
 ) -> pd.DataFrame:
-    """Descarga, en orden y de a uno, el archivo de cada anuncio de ``top`` usando el
-    navegador indicado. Devuelve el mismo manifiesto que la descarga HTTP."""
     from playwright.sync_api import sync_playwright
 
     destino = Path(destino)

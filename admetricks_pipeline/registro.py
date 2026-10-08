@@ -1,5 +1,3 @@
-"""Registro de cada ejecución y el resumen que muestra ``--resume``."""
-
 from __future__ import annotations
 
 import json
@@ -12,7 +10,6 @@ CARPETA_HISTORIAL = "historial"
 
 
 def guardar(registro: dict, salida: Path) -> Path:
-    """Guarda el registro como última ejecución, en el historial y como resumen en texto."""
     salida.mkdir(parents=True, exist_ok=True)
     contenido = json.dumps(registro, ensure_ascii=False, indent=2, default=str)
     ultimo = salida / ARCHIVO_REGISTRO
@@ -35,7 +32,6 @@ def leer(salida: Path) -> dict | None:
 
 
 def _n(valor) -> str:
-    """Número con separador de miles al estilo español (17.179)."""
     if valor is None:
         return "-"
     if isinstance(valor, float):
@@ -48,7 +44,6 @@ def _hora(iso: str | None) -> str:
 
 
 def formatear(r: dict) -> str:
-    """Texto legible con todo lo que hizo una ejecución."""
     lineas: list[str] = []
     add = lineas.append
     linea = "═" * 64
@@ -80,7 +75,6 @@ def formatear(r: dict) -> str:
 
 
 def _bloque_archivo(add, r: dict) -> None:
-    """Entrada, carga a la base y pasos 1-3 de un archivo."""
     ent = r.get("entrada", {})
     add(f"Archivo    : {ent.get('archivo', '-')}")
     add(f"Filas      : {_n(ent.get('filas'))} · columnas: {_n(ent.get('columnas'))}")
@@ -179,7 +173,6 @@ def _bloque_archivo(add, r: dict) -> None:
 
 
 def _bloque_final(add, r: dict) -> None:
-    """Respaldo en la nube y archivos generados de toda la ejecución."""
     nube = r.get("nube")
     if nube:
         add("")

@@ -1,5 +1,3 @@
-"""Lectura de exports de Admetricks en CSV o Excel, siempre como texto."""
-
 from __future__ import annotations
 
 import csv
@@ -14,7 +12,6 @@ EXTENSIONES = (".csv", ".xlsx", ".xlsm", ".xls")
 
 
 def _separador(ruta: Path, encoding: str) -> str:
-    """Detecta el separador (, ; o tab). Excel en español suele guardar CSV con ';'."""
     with open(ruta, encoding=encoding, newline="") as fh:
         muestra = fh.read(64 * 1024)
     try:
@@ -24,12 +21,6 @@ def _separador(ruta: Path, encoding: str) -> str:
 
 
 def leer_tabla(ruta: str | Path) -> pd.DataFrame:
-    """Lee un CSV o Excel con todas las columnas como texto (sin que pandas adivine tipos).
-
-    - CSV: UTF-8 (con o sin BOM) y, si falla, Latin-1; separador detectado automáticamente.
-    - Excel: la primera hoja.
-    Las celdas vacías quedan como NaN; el resto, tal como viene (``NULL`` incluido).
-    """
     ruta = Path(ruta)
     extension = ruta.suffix.lower()
     if extension not in EXTENSIONES:
@@ -52,7 +43,6 @@ def leer_tabla(ruta: str | Path) -> pd.DataFrame:
 
 
 def listar_archivos(carpeta: Path) -> list[Path]:
-    """CSV/Excel de ``carpeta``, del más antiguo al más reciente (ignora temporales ~$ de Excel)."""
     carpeta = Path(carpeta)
     if not carpeta.is_dir():
         return []
@@ -64,7 +54,6 @@ def listar_archivos(carpeta: Path) -> list[Path]:
 
 
 def archivo_mas_reciente(carpeta: Path) -> Path:
-    """El CSV/Excel modificado más recientemente en ``carpeta``."""
     archivos = listar_archivos(carpeta)
     if not archivos:
         raise FileNotFoundError(f"No se indicó un archivo y no hay CSV/Excel en {carpeta}")

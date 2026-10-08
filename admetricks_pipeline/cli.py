@@ -1,5 +1,3 @@
-"""Punto de entrada: ``python main.py [archivo.csv]`` o ``python main.py --resume``."""
-
 from __future__ import annotations
 
 import argparse
@@ -25,11 +23,6 @@ log = logging.getLogger("admetricks_pipeline")
 
 
 def _cargar_env() -> None:
-    """Lee el archivo .env de la carpeta actual (la del proyecto), si existe.
-
-    Ahí van NEON_DATABASE_URL (conexión a la nube) y ADMETRICKS_DB (ruta de la base local),
-    para no escribirlos en cada comando ni dejarlos en el código.
-    """
     try:
         from dotenv import load_dotenv
     except ImportError:
@@ -96,7 +89,6 @@ def _argumentos(argv: list[str] | None) -> argparse.Namespace:
 
 
 def _configurar_logs(salida: Path) -> Path:
-    """Log a archivo siempre; a consola solo si hay una (con pythonw no la hay)."""
     carpeta = salida / "logs"
     carpeta.mkdir(parents=True, exist_ok=True)
     archivo = carpeta / "pipeline.log"
@@ -134,13 +126,12 @@ def _f(valor) -> float | None:
 
 
 def _descargar(args: argparse.Namespace, top: pd.DataFrame, destino: Path, info: dict) -> pd.DataFrame:
-    """Descarga con el navegador si es posible; si no, por HTTP directo."""
     if args.modo_descarga == "navegador":
         from .navegador import elegir_navegador, navegador_por_defecto
 
         navegador = elegir_navegador(args.navegador, args.navegador_ruta)
         try:
-            import playwright  # noqa: F401
+            import playwright
         except ImportError:
             navegador, motivo = None, "Playwright no está instalado (pip install playwright)"
         else:
@@ -169,16 +160,8 @@ def _descargar(args: argparse.Namespace, top: pd.DataFrame, destino: Path, info:
 
 
 def ejecutar(args: argparse.Namespace, registro: dict) -> int:
-    """python main.py: procesa los archivos y, al final, respalda la base en la nube.
-
-    - Sin archivo: todos los archivos nuevos de --entrada (los que aún no están en la tabla
-      cargas), del más antiguo al más reciente. Cada uno pasa por los pasos 1-3 y se carga a
-      la base local. Si no hay nuevos, no hace nada.
-    - Con archivo, --ultimo o --sin-bd: solo ese archivo (o el más reciente), sin cargarlo.
-    """
     registro["archivos"] = []
     if args.formateo:
-        # Reemplazo completo: todos los archivos de la carpeta. Nunca se deja la base vacía.
         archivos, cargar = archivos_de_carpeta(args.entrada), "formateo"
         registro["formateo"] = True
         if not archivos:
@@ -206,16 +189,13 @@ def ejecutar(args: argparse.Namespace, registro: dict) -> int:
             log.info("Leídas %d filas y %d columnas de %s", len(df), df.shape[1], archivo)
             ra["entrada"] = {"archivo": str(archivo), "filas": len(df), "columnas": int(df.shape[1])}
             codigo = max(codigo, procesar_archivo(args, archivo, ra, df.copy()))
-            # Se carga a la base al final: si el procesamiento falla, el archivo sigue pendiente
-            # y se reintenta en la próxima ejecución.
             if cargar == "update":
                 ra["base_datos"] = cargar_bd(args.db, df, archivo, "update", _fecha_respaldo(args, archivo))
             elif cargar == "formateo":
                 para_formateo.append((df, archivo, _fecha_respaldo(args, archivo), ra))
         except Exception as exc:
             if not cargar:
-                raise  # un solo archivo indicado: la ejecución completa falla
-            # Con varios archivos nuevos, uno con problemas no frena a los demás.
+                raise
             log.exception("Falló el procesamiento de %s", archivo)
             ra["error"] = f"{type(exc).__name__}: {exc}"
             codigo = 2
@@ -228,22 +208,18 @@ def ejecutar(args: argparse.Namespace, registro: dict) -> int:
                                  "No se borró nada; la base quedó como estaba.")
             log.error(registro["error"])
             return 2
-        # Todos los archivos se procesaron bien: ahora sí, borrar y cargar en una sola transacción.
         resultados = cargar_varios(args.db, [(d, a, f) for d, a, f, _ in para_formateo], "formateo")
         for (_, _, _, ra), resultado in zip(para_formateo, resultados):
             ra["base_datos"] = resultado
 
-    # Al terminar, respaldo automático de la base local en Neon (si está configurado en .env).
     if not _respaldo_automatico(args, registro):
         codigo = max(codigo, 1)
     return codigo
 
 
 def procesar_archivo(args: argparse.Namespace, csv: Path, registro: dict, df: pd.DataFrame) -> int:
-    """Pasos 1, 2 y 3 sobre un archivo. Devuelve 1 si alguna descarga falló."""
     salidas = registro["salidas"]
 
-    # ---- Paso 1: fechas
     respaldo = _fecha_respaldo(args, csv)
     fechas = convertir_fechas(df[col.columna(df, *col.FECHA)], respaldo)
     df["fecha_cast"] = fechas["fecha_cast"]
@@ -259,7 +235,6 @@ def procesar_archivo(args: argparse.Namespace, csv: Path, registro: dict, df: pd
         "hasta": validas.max() if len(validas) else None,
     }
 
-    # ---- Paso 2: costos
     detalle = detalle_cpm(df, metodo=args.cpm_metodo)
     df = calcular_cpm_delta(df, metodo=args.cpm_metodo)
     procesado = args.salida / f"{csv.stem}_procesado.csv"
@@ -286,7 +261,6 @@ def procesar_archivo(args: argparse.Namespace, csv: Path, registro: dict, df: pd
         },
     }
 
-    # ---- Paso 3: selección y descargas
     top = seleccionar_top_anuncios(df, n=args.top, candidatos=args.candidatos, alcance=args.alcance)
     log.info("%d anuncios seleccionados (%d marcas): los %d con más impresiones de cada marca%s",
              len(top), top["marca"].nunique(), args.top,
@@ -319,7 +293,6 @@ def procesar_archivo(args: argparse.Namespace, csv: Path, registro: dict, df: pd
         info["errores"] = manifiesto.loc[manifiesto["estado"] == "error", ["marca", "ranking", "advertisement", "error"]].to_dict("records")
         log.info("Descargas: %s", info["estados"])
         if not args.sin_bd:
-            # Un error con la base (p. ej. bloqueada) no invalida las descargas ya hechas.
             try:
                 info["bd"] = registrar_descargas(args.db, manifiesto, csv, info)
                 salidas["base_datos"] = str(args.db)
@@ -335,12 +308,10 @@ def procesar_archivo(args: argparse.Namespace, csv: Path, registro: dict, df: pd
         .to_dict("records")
     )
 
-    # Código de salida != 0 si alguna descarga falló, para que un scheduler lo detecte.
     return 1 if info.get("estados", {}).get("error", 0) else 0
 
 
 def _respaldo_automatico(args: argparse.Namespace, registro: dict) -> bool:
-    """Respalda la base local en Neon al final de python main.py. Devuelve False si falló."""
     if args.sin_nube:
         return True
     if not args.neon_url:
@@ -355,14 +326,12 @@ def _respaldo_automatico(args: argparse.Namespace, registro: dict) -> bool:
         registro["nube"] = respaldar(args.db, args.neon_url)
         return True
     except Exception as exc:
-        # Las descargas ya están hechas: un fallo de la nube se informa, pero no las deshace.
         log.error("Falló el respaldo en la nube: %s", exc)
         registro["nube"] = {"destino": ocultar_url(args.neon_url), "error": f"{type(exc).__name__}: {exc}"}
         return False
 
 
 def actualizar_bd(args: argparse.Namespace, registro: dict) -> int:
-    """--update / --formateo: carga el archivo en la base SQLite y termina."""
     archivo = _csv_entrada(args)
     modo = "formateo" if args.formateo else "update"
     df = leer_tabla(archivo)
@@ -384,7 +353,6 @@ def mostrar_resumen(salida: Path) -> int:
 
 
 def respaldo_nube(args: argparse.Namespace, registro: dict) -> int:
-    """--respaldo-nube: copia la base SQLite local a Neon."""
     from .nube import respaldar
 
     registro["nube"] = respaldar(args.db, args.neon_url)
@@ -392,8 +360,6 @@ def respaldo_nube(args: argparse.Namespace, registro: dict) -> int:
 
 
 def _salida_utf8() -> None:
-    """En Windows, si la salida se redirige a un archivo (o la captura un programador de
-    tareas), Python usa cp1252 y fallaría con caracteres como → o ═. Ahí se fuerza UTF-8."""
     for flujo in (sys.stdout, sys.stderr):
         try:
             if flujo is not None and not flujo.isatty() and (flujo.encoding or "").lower() != "utf-8":
@@ -417,7 +383,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.respaldo_nube:
             accion = respaldo_nube
         elif args.formateo and not args.csv:
-            accion = ejecutar  # formateo completo de la carpeta: pasos 1-3 + base + nube
+            accion = ejecutar
         elif args.update or args.formateo:
             accion = actualizar_bd
         else:

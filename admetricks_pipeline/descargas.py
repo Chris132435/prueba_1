@@ -1,13 +1,3 @@
-"""Paso 3: selección de anuncios y descarga directa por HTTP.
-
-La selección se hace solo con los metadatos del CSV (sin descargar nada): por cada marca,
-los ``n`` anuncios (URLs de Advertisement) con más impresiones. Opcionalmente se puede limitar
-antes a las ``candidatos`` URLs que más se repiten.
-
-La descarga por defecto la hace el navegador (ver :mod:`.navegador`); este módulo tiene
-además la descarga HTTP directa en paralelo, que sirve de respaldo.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -35,19 +25,6 @@ ALCANCES = ("marca", "global")
 def seleccionar_top_anuncios(
     df: pd.DataFrame, n: int = 3, candidatos: int | None = None, alcance: str = "marca"
 ) -> pd.DataFrame:
-    """Elige los anuncios a descargar sin descargar nada.
-
-    Un anuncio es una URL única de Advertisement; sus impresiones son la suma de la columna
-    Impresiones de todas sus filas. Para cada grupo (cada marca, o todo el archivo si
-    ``alcance="global"``) se toman los ``n`` anuncios con más impresiones (desempate: más
-    repeticiones, luego URL).
-
-    Si se indica ``candidatos`` (opcional), antes se limita cada grupo a las ``candidatos``
-    URLs que más se repiten (desempate: más impresiones, luego URL).
-
-    Devuelve una fila por anuncio elegido con marca, ranking (1..n), advertisement,
-    repeticiones, ranking_repeticiones e impresiones, ordenado por grupo y ranking.
-    """
     if alcance not in ALCANCES:
         raise ValueError(f"alcance debe ser uno de {ALCANCES}, no {alcance!r}")
 
@@ -75,10 +52,8 @@ def seleccionar_top_anuncios(
     )
     agregado["ranking_repeticiones"] = agregado.groupby("_grupo").cumcount() + 1
 
-    # Filtro opcional: solo las URLs que más se repiten.
     candidatas = agregado[agregado["ranking_repeticiones"] <= candidatos] if candidatos else agregado
 
-    # Los n anuncios con más impresiones.
     top = (
         candidatas.sort_values(
             ["_grupo", "impresiones", "repeticiones", "advertisement"],
@@ -102,7 +77,6 @@ def _slug(texto: str) -> str:
 
 
 def nombre_archivo(url: str) -> str:
-    """Nombre de archivo seguro derivado de la URL (sin rutas ni caracteres raros)."""
     base = Path(unquote(urlparse(url).path)).name
     nombre = _slug(base)
     if nombre == "sin_nombre":
@@ -115,7 +89,6 @@ def ruta_destino(destino: Path, marca: str, ranking: int, url: str) -> Path:
 
 
 def resultado_inicial(url: str, archivo: Path, sobrescribir: bool) -> dict:
-    """Resultado base de una descarga; ya resuelto si la URL es inválida o el archivo existe."""
     resultado = {"archivo": str(archivo), "estado": "", "bytes": 0, "sha256": "", "error": ""}
     if urlparse(url).scheme not in ("http", "https"):
         resultado.update(estado="error", error="URL no es http(s)")
@@ -133,7 +106,6 @@ def sha256_archivo(ruta: Path) -> str:
 
 
 def finalizar_archivo(temporal: Path, archivo: Path, resultado: dict) -> None:
-    """Valida el ``.part`` descargado y lo renombra al nombre final."""
     if temporal.stat().st_size == 0:
         raise IOError("respuesta vacía")
     sha = sha256_archivo(temporal)
@@ -148,13 +120,10 @@ def armar_manifiesto(top: pd.DataFrame, resultados: list[dict]) -> pd.DataFrame:
     return manifiesto
 
 
-# ---------------------------------------------------------------- descarga HTTP directa
-
 _local = threading.local()
 
 
 def _sesion(reintentos: int) -> requests.Session:
-    """Una sesión HTTP por hilo (requests.Session no es thread-safe)."""
     sesion = getattr(_local, "sesion", None)
     if sesion is None:
         reintento = Retry(
@@ -189,7 +158,7 @@ def _descargar_uno(
                 for bloque in resp.iter_content(_TAMANO_BLOQUE):
                     fh.write(bloque)
         finalizar_archivo(temporal, archivo, resultado)
-    except Exception as exc:  # se registra en el manifiesto; no se detiene el lote
+    except Exception as exc:
         temporal.unlink(missing_ok=True)
         resultado.update(estado="error", error=f"{type(exc).__name__}: {exc}")
     return resultado
@@ -203,12 +172,6 @@ def descargar_anuncios(
     reintentos: int = 3,
     sobrescribir: bool = False,
 ) -> pd.DataFrame:
-    """Descarga por HTTP, en paralelo, el archivo de cada anuncio de ``top`` en
-    ``destino/<marca>/<ranking>_<archivo>``.
-
-    Es idempotente: los archivos ya descargados se omiten salvo ``sobrescribir=True``.
-    Devuelve ``top`` con las columnas archivo, estado, bytes, sha256 y error.
-    """
     destino = Path(destino)
     tareas = [
         (fila.advertisement, ruta_destino(destino, fila.marca, fila.ranking, fila.advertisement))

@@ -1,14 +1,3 @@
-"""Carga de los exports de Admetricks a una base SQLite local.
-
-- ``--update``: agrega todas las filas del archivo como entradas nuevas, cada una con su ID
-  automático, aunque sus datos ya estén en la base.
-- ``--formateo``: borra todos los anuncios, reinicia los ID y vuelve a cargar el archivo.
-
-Cada carga es una sola transacción (si falla, la base queda como estaba) y queda registrada en
-la tabla ``cargas``; cada fila guarda ``id_carga`` y ``archivo_origen`` para saber de qué carga
-vino.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -28,7 +17,6 @@ log = logging.getLogger(__name__)
 TABLA = "anuncios"
 MODOS = ("update", "formateo")
 
-# Columnas del export en el orden del archivo, con su tipo en SQLite.
 COLUMNAS_ARCHIVO: list[tuple[str, str]] = [
     ("Fecha", "TEXT"),
     ("Industria", "TEXT"),
@@ -42,7 +30,7 @@ COLUMNAS_ARCHIVO: list[tuple[str, str]] = [
     ("Editor", "TEXT"),
     ("Formato", "TEXT"),
     ("Tamaño de Aviso", "TEXT"),
-    ("Duración de Video", "TEXT"),  # trae valores como "1,0": se guarda tal cual
+    ("Duración de Video", "TEXT"),
     ("Omitible Video", "INTEGER"),
     ("Posición", "TEXT"),
     ("Advertisement", "TEXT"),
@@ -58,9 +46,8 @@ COLUMNAS_ARCHIVO: list[tuple[str, str]] = [
     ("Ads Count", "INTEGER"),
 ]
 
-# Columnas agregadas por el pipeline (además del ID).
 COLUMNAS_EXTRA: list[tuple[str, str]] = [
-    ("fecha_cast", "TEXT"),  # yyyy-mm-dd (paso 1)
+    ("fecha_cast", "TEXT"),
     ("archivo_origen", "TEXT"),
     ("id_carga", "INTEGER REFERENCES cargas(id)"),
 ]
@@ -76,8 +63,6 @@ CREATE TABLE IF NOT EXISTS cargas (
     filas_insertadas INTEGER,
     filas_borradas INTEGER
 );
--- Paso 3: un registro por anuncio seleccionado en cada ejecución. Solo se guarda la ruta del
--- archivo descargado en el equipo (ruta_local), no la imagen o el video.
 CREATE TABLE IF NOT EXISTS descargas (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     id_ejecucion INTEGER NOT NULL,
@@ -108,8 +93,6 @@ CREATE INDEX IF NOT EXISTS ix_{TABLA}_marca_fecha ON {TABLA}(Marca, fecha_cast);
 CREATE INDEX IF NOT EXISTS ix_{TABLA}_advertisement ON {TABLA}(Advertisement);
 CREATE INDEX IF NOT EXISTS ix_{TABLA}_id_carga ON {TABLA}(id_carga);
 
--- Paso 2 dentro de la base: CPM y cpm_delta se calculan al consultar, así siempre están
--- al día aunque se agreguen filas del mismo mes y marca con --update.
 DROP VIEW IF EXISTS v_{TABLA}_cpm;
 CREATE VIEW v_{TABLA}_cpm AS
 WITH base AS (
@@ -130,7 +113,6 @@ def _q(nombre: str) -> str:
 
 
 def ddl_tabla() -> str:
-    """CREATE TABLE recomendado para ``anuncios``."""
     definiciones = ["    ID INTEGER PRIMARY KEY AUTOINCREMENT"]
     for nombre, tipo in COLUMNAS_ARCHIVO[:1] + COLUMNAS_EXTRA[:1] + COLUMNAS_ARCHIVO[1:] + COLUMNAS_EXTRA[1:]:
         definiciones.append(f"    {_q(nombre)} {tipo}")
@@ -150,9 +132,6 @@ def conectar(ruta: str | Path) -> sqlite3.Connection:
 
 
 def preparar_esquema(con: sqlite3.Connection) -> list[str]:
-    """Crea la tabla si no existe; si ya existe (p. ej. creada a mano), agrega las columnas
-    que le falten. Después crea la tabla de cargas, los índices y la vista. Devuelve las
-    columnas agregadas."""
     con.execute(ddl_tabla())
     existentes = {fila[1] for fila in con.execute(f"PRAGMA table_info({TABLA})")}
     agregadas = []
@@ -167,7 +146,6 @@ def preparar_esquema(con: sqlite3.Connection) -> list[str]:
 
 
 def preparar_filas(df: pd.DataFrame, archivo: Path, fecha_respaldo: pd.Timestamp | None) -> pd.DataFrame:
-    """Convierte el DataFrame leído (todo texto) en las filas a insertar en ``anuncios``."""
     reales = {}
     for nombre, _ in COLUMNAS_ARCHIVO:
         try:
@@ -220,7 +198,6 @@ def cargar(
     modo: str,
     fecha_respaldo: pd.Timestamp | None = None,
 ) -> dict:
-    """Carga ``df`` (leído de ``archivo``) en la base según ``modo`` (update / formateo)."""
     return cargar_varios(ruta_db, [(df, archivo, fecha_respaldo)], modo)[0]
 
 
@@ -229,11 +206,6 @@ def cargar_varios(
     lotes: list[tuple[pd.DataFrame, Path, pd.Timestamp | None]],
     modo: str,
 ) -> list[dict]:
-    """Carga varios archivos en una sola transacción. ``lotes`` = [(df, archivo, fecha_respaldo)].
-
-    Con ``modo="formateo"`` primero borra todos los anuncios y reinicia el ID; si cualquier
-    archivo falla, no se borra ni se carga nada. Devuelve un resultado por archivo.
-    """
     if modo not in MODOS:
         raise ValueError(f"modo debe ser uno de {MODOS}, no {modo!r}")
     if not lotes:
@@ -249,7 +221,7 @@ def cargar_varios(
     con = conectar(ruta_db)
     try:
         agregadas = preparar_esquema(con)
-        with con:  # una transacción: borrar + cargar es todo o nada
+        with con:
             borradas = 0
             if modo == "formateo":
                 borradas = con.execute(f"DELETE FROM {TABLA}").rowcount
@@ -305,8 +277,6 @@ def cargar_varios(
 
 
 def registrar_descargas(ruta_db: str | Path, manifiesto: pd.DataFrame, archivo_origen: Path, info: dict) -> dict:
-    """Guarda en la tabla ``descargas`` un registro por anuncio de ``manifiesto`` (salida del
-    paso 3). Solo se guarda la ruta absoluta del archivo en este equipo, no el archivo."""
     fecha = datetime.now().isoformat(timespec="seconds")
     equipo = platform.node()
     navegador = (info.get("navegador") or {}).get("nombre")
@@ -338,7 +308,6 @@ def registrar_descargas(ruta_db: str | Path, manifiesto: pd.DataFrame, archivo_o
 
 
 def archivos_de_carpeta(carpeta: str | Path) -> list[Path]:
-    """Todos los CSV/Excel de ``carpeta`` (del más antiguo al más reciente), sin repetir contenido."""
     from .lectura import listar_archivos
 
     unicos: list[Path] = []
@@ -352,12 +321,6 @@ def archivos_de_carpeta(carpeta: str | Path) -> list[Path]:
 
 
 def archivos_pendientes(carpeta: str | Path, ruta_db: str | Path) -> list[Path]:
-    """Archivos de ``carpeta`` que todavía no se cargaron a la base, del más antiguo al más nuevo.
-
-    Un archivo ya está procesado si su sha256 (huella del contenido) figura en la tabla
-    ``cargas``: renombrarlo no hace que se repita, y si su contenido cambia se procesa de nuevo.
-    Si en la carpeta hay dos archivos con el mismo contenido, se toma solo el primero.
-    """
     from .lectura import listar_archivos
 
     cargados: set[str] = set()
@@ -367,7 +330,7 @@ def archivos_pendientes(carpeta: str | Path, ruta_db: str | Path) -> list[Path]:
             cargados = {r[0] for r in con.execute(
                 "SELECT sha256_archivo FROM cargas WHERE sha256_archivo IS NOT NULL")}
         except sqlite3.OperationalError:
-            pass  # la base todavía no tiene la tabla cargas
+            pass
         finally:
             con.close()
 

@@ -1,5 +1,3 @@
-"""Pipeline de procesamiento de exports de Admetricks."""
-
 from .costos import calcular_cpm_delta, detalle_cpm
 from .descargas import descargar_anuncios, seleccionar_top_anuncios
 from .fechas import convertir_fechas, periodo_desde_nombre

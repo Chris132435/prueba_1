@@ -1,5 +1,3 @@
-"""Paso 2: análisis de costos (CPM y cpm_delta por mes y marca)."""
-
 from __future__ import annotations
 
 import numpy as np
@@ -16,18 +14,6 @@ def _numero(serie: pd.Series) -> pd.Series:
 
 
 def detalle_cpm(df: pd.DataFrame, metodo: str = "simple") -> pd.DataFrame:
-    """Calcula, alineado con ``df``, las columnas intermedias del análisis de costos.
-
-    - mes: yyyy-mm tomado de ``fecha_cast``.
-    - cpm = (Valorización Local / Impresiones) * 1000 (NaN si no hay impresiones).
-    - cpm_promedio: CPM promedio del mismo mes y marca.
-        * ``simple``: media aritmética de los CPM de las filas.
-        * ``ponderado``: (sum(Valorización Local) / sum(Impresiones)) * 1000.
-    - cpm_delta = cpm_promedio - cpm (positivo: la fila salió más barata que el
-      promedio de su marca ese mes).
-
-    Requiere que ``df`` ya tenga ``fecha_cast``.
-    """
     if metodo not in METODOS_PROMEDIO:
         raise ValueError(f"metodo debe ser uno de {METODOS_PROMEDIO}, no {metodo!r}")
 
@@ -44,7 +30,6 @@ def detalle_cpm(df: pd.DataFrame, metodo: str = "simple") -> pd.DataFrame:
     if metodo == "simple":
         promedio = cpm.groupby(claves, dropna=False).transform("mean")
     else:
-        # Solo filas con CPM válido entran al numerador y al denominador.
         valido = cpm.notna()
         suma_valor = valor.where(valido).groupby(claves, dropna=False).transform("sum")
         suma_impr = impresiones_validas.where(valido).groupby(claves, dropna=False).transform("sum")
@@ -64,14 +49,12 @@ def detalle_cpm(df: pd.DataFrame, metodo: str = "simple") -> pd.DataFrame:
 
 
 def calcular_cpm_delta(df: pd.DataFrame, metodo: str = "simple") -> pd.DataFrame:
-    """Devuelve una copia de ``df`` con una única columna nueva: ``cpm_delta``."""
     salida = df.copy()
     salida["cpm_delta"] = detalle_cpm(df, metodo)["cpm_delta"]
     return salida
 
 
 def resumen_cpm_mes_marca(detalle: pd.DataFrame) -> pd.DataFrame:
-    """Tabla de auditoría por mes y marca a partir de :func:`detalle_cpm`."""
     return (
         detalle.groupby(["mes", "marca"], dropna=False)
         .agg(

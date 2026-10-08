@@ -1,5 +1,3 @@
-"""Paso 1: normalización de la columna Fecha a ``fecha_cast`` (yyyy-mm-dd)."""
-
 from __future__ import annotations
 
 import logging
@@ -12,23 +10,15 @@ from .columnas import quitar_apostrofo
 
 log = logging.getLogger(__name__)
 
-# yyyy-mm-dd, yyyy/mm/dd, yyyy-mm-dd hh:mm:ss.f, yyyy-mm-ddThh:mm:ssZ ...
 _RE_ISO = r"^(?P<y>\d{4})[-/.](?P<m>\d{1,2})[-/.](?P<d>\d{1,2})(?:$|[ T])"
-# dd/mm/yyyy, dd-mm-yyyy (formato habitual en Latinoamérica), con o sin hora
 _RE_DIA_PRIMERO = r"^(?P<d>\d{1,2})[-/.](?P<m>\d{1,2})[-/.](?P<y>\d{4})(?:$|[ T])"
-# Número de serie de Excel (días desde 1899-12-30), p. ej. 46296 o 46296.0
 _RE_SERIAL_EXCEL = r"^\d{5}(?:\.\d+)?$"
-# Solo hora, sin fecha: lo que deja Excel al guardar un datetime con formato mm:ss.0
 _RE_SOLO_HORA = r"^\d{1,2}:\d{2}(?::\d{2})?(?:\.\d+)?$"
 
 _RE_PERIODO_ARCHIVO = re.compile(r"(?<!\d)(\d{4})-(\d{2})(?:-(\d{2}))?(?!\d)")
 
 
 def periodo_desde_nombre(ruta: str | Path) -> pd.Timestamp | None:
-    """Obtiene la fecha de referencia del nombre del archivo.
-
-    ``2026-10-Admetricks-Mascotas.csv`` -> 2026-10-01. Devuelve None si no hay periodo.
-    """
     m = _RE_PERIODO_ARCHIVO.search(Path(ruta).name)
     if not m:
         return None
@@ -38,7 +28,6 @@ def periodo_desde_nombre(ruta: str | Path) -> pd.Timestamp | None:
 
 
 def _desde_partes(partes: pd.DataFrame) -> pd.Series:
-    """Construye fechas a partir de columnas y/m/d (texto). Fechas inválidas -> NaT."""
     numeros = partes[["y", "m", "d"]].astype("float")
     numeros.columns = ["year", "month", "day"]
     return pd.to_datetime(numeros, errors="coerce")
@@ -47,20 +36,6 @@ def _desde_partes(partes: pd.DataFrame) -> pd.Series:
 def convertir_fechas(
     serie: pd.Series, fecha_respaldo: pd.Timestamp | None = None
 ) -> pd.DataFrame:
-    """Convierte una serie de fechas heterogéneas al formato yyyy-mm-dd.
-
-    Antes de convertir se quita el apóstrofo inicial (``'2026-10-01 00:00:00.0``), que
-    aparece cuando el valor se exportó forzado como texto; esas filas se cuentan y se
-    reporta un warning porque suelen indicar un error en la descarga del archivo.
-
-    Se toma la fecha calendario tal como está escrita (sin convertir zonas horarias).
-    Los valores sin fecha recuperable (vacíos o solo hora, como ``00:00.0``) se
-    rellenan con ``fecha_respaldo``.
-
-    Devuelve un DataFrame alineado con ``serie`` con las columnas:
-    ``fecha_cast`` (texto yyyy-mm-dd), ``fecha_inferida`` (se usó el respaldo),
-    ``apostrofo`` (traía apóstrofo inicial) y ``no_reconocida`` (formato desconocido).
-    """
     texto, apostrofo = quitar_apostrofo(serie)
     if apostrofo.any():
         log.warning(
