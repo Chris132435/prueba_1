@@ -1,0 +1,27 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+output/
+*.db
+*.db-journal
+
+# Anuncios descargados (videos e imágenes), aunque se use otra carpeta con --salida
+anuncios/
+*.part
+*.mp4
+*.webm
+*.mov
+*.avi
+*.m4v
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
+*.bmp
+# ...salvo los diagramas de la documentación
+!docs/diagramas/*.png
+
+# Credenciales y configuración local (conexión a Neon)
+.env
