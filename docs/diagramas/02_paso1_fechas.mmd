@@ -1,0 +1,19 @@
+flowchart TD
+    I["Valor de la columna <b>Fecha</b> (texto)"] --> A{"¿Empieza con apóstrofo?<br/>'2026-10-01 00:00:00.0"}
+    A -->|sí| Q["Quita el ' y lo cuenta<br/>⚠ warning: posible error de descarga"]
+    A -->|no| R1
+    Q --> R1{"¿yyyy-mm-dd válida?<br/>con o sin hora / zona"}
+    R1 -->|sí| OK
+    R1 -->|no| R2{"¿dd/mm/yyyy válida?<br/>día primero"}
+    R2 -->|sí| OK
+    R2 -->|no| R3{"¿serial de Excel?<br/>5 dígitos, base 1899-12-30"}
+    R3 -->|sí| OK
+    R3 -->|"no (ej. '00:00.0', vacío)"| R4{"¿Hay fecha de respaldo?<br/>#45;#45;periodo o nombre del archivo<br/>2026-10-… → 2026-10-01"}
+    R4 -->|sí| INF["fecha_cast = respaldo<br/>⚠ warning en log"]
+    R4 -->|no| NA["fecha_cast vacía<br/>⚠ warning en log"]
+    OK["fecha_cast = yyyy-mm-dd"]
+
+    classDef ok fill:#dbeafe,stroke:#1d4ed8,color:#0b1f4d
+    classDef warn fill:#fee2e2,stroke:#b91c1c,color:#450a0a
+    class OK ok
+    class Q,INF,NA warn

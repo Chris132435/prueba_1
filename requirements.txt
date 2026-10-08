@@ -1,0 +1,23 @@
+# Versiones exactas, probadas con Python 3.12 y 3.13 en Windows y Linux.
+# Generado desde requirements.in (ver ese archivo para actualizar).
+# Instalación: pip install -r requirements.txt
+certifi==2026.7.22
+charset-normalizer==3.5.2
+et_xmlfile==2.0.0
+greenlet==3.5.6
+idna==3.20
+numpy==2.5.3
+openpyxl==3.1.5
+pandas==3.0.6
+playwright==1.63.0
+psycopg==3.3.6
+psycopg-binary==3.3.6
+pyee==13.0.1
+python-dateutil==2.9.0.post0
+python-dotenv==1.2.4
+requests==2.34.2
+six==1.17.0
+typing_extensions==4.16.0
+urllib3==2.8.0
+# Solo en Windows (pandas y psycopg usan la base de zonas horarias de tzdata)
+tzdata==2026.5 ; sys_platform == "win32"

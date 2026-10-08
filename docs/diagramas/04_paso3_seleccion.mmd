@@ -1,0 +1,11 @@
+flowchart LR
+    A["17.179 filas<br/>Marca · Advertisement · Impresiones"] --> B["Agrupar por (marca, URL)<br/>impresiones = Σ Impresiones"]
+    B --> C["1.478 anuncios únicos"]
+    C --> T["Por cada marca:<br/>los <b>3 con más impresiones</b>"]
+    T --> E["<b>85 anuncios</b> · 32 marcas<br/>ranking 1 → 3"]
+    E --> N["Recién aquí se descarga<br/>el archivo de Advertisement:<br/>85 archivos, no 1.478"]
+
+    classDef p3 fill:#dcfce7,stroke:#15803d,color:#0b2e17
+    classDef io fill:#f3f4f6,stroke:#4b5563,color:#111827
+    class T,E p3
+    class A,B,C,N io

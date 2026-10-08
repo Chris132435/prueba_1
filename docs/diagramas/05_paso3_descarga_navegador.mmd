@@ -1,0 +1,30 @@
+sequenceDiagram
+    autonumber
+    participant CLI as cli.py
+    participant SO as Sistema operativo
+    participant NAV as Brave / Edge
+    participant SRV as Servidor del anuncio
+    participant FS as Disco local
+    participant DB as SQLite local
+
+    CLI->>SO: ¿navegador predeterminado? (registro de Windows / LaunchServices / xdg)
+    SO-->>CLI: brave · edge · otro
+    Note over CLI: Si es Brave o Edge se usa ese,<br/>si no, el primero instalado entre Brave y Edge.<br/>Sin ninguno → descarga HTTP directa.
+    CLI->>NAV: abre el navegador (perfil temporal)
+    loop cada anuncio, en orden: marca → ranking 1, 2, 3
+        alt el archivo ya existe
+            CLI->>CLI: estado = existente (no abre pestaña)
+        else
+            CLI->>NAV: pestaña nueva con la URL
+            NAV->>SRV: GET url
+            SRV-->>NAV: imagen / video
+            NAV->>FS: descarga NN_archivo.part
+            NAV-->>CLI: descarga terminada
+            CLI->>FS: valida, calcula sha256 y renombra al nombre final
+            CLI->>NAV: cierra la pestaña → siguiente anuncio
+        end
+    end
+    CLI->>NAV: cierra el navegador
+    CLI->>FS: top_anuncios.csv + ejecucion.json
+    CLI->>DB: INSERT en descargas: ruta_local, estado, bytes, sha256 (no el archivo)
+    Note over DB: python main.py --respaldo-nube<br/>la copia a Neon (PostgreSQL)

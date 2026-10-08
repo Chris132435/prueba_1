@@ -1,0 +1,14 @@
+flowchart LR
+    subgraph SIN["Ejecución sin terminal"]
+        A["Doble clic en <b>main.pyw</b><br/>o pythonw main.pyw<br/>o Programador de tareas"] --> B["Corre pasos 1 → 2 → 3<br/>sin ventana de consola"]
+        B --> C["Solo se ve el navegador<br/>mientras descarga"]
+        C --> D(["Cierra todo y termina"])
+    end
+    B --> REG[("output/<br/>ejecucion.json<br/>resumen_ejecucion.txt<br/>historial/ · logs/")]
+    subgraph RES["Resumen"]
+        E["<b>python main.py --resume</b>"] --> F["Imprime qué hizo la última ejecución:<br/>estado, tiempos, paso 1, paso 2, paso 3,<br/>descargas, errores y archivos generados"]
+    end
+    REG --> E
+
+    classDef fin fill:#ede9fe,stroke:#6d28d9,color:#2e1065
+    class A,B,C,D,E,F fin

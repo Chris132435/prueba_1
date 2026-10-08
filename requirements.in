@@ -1,0 +1,10 @@
+# Dependencias directas del proyecto (rangos amplios).
+# requirements.txt se genera a partir de este archivo con versiones exactas:
+#   python -m venv .venv-lock && .venv-lock\Scripts\pip install -r requirements.in
+#   .venv-lock\Scripts\pip freeze > requirements.txt   (y agregar los pines de Windows del final)
+pandas>=2.1
+requests>=2.31
+openpyxl>=3.1           # lectura de archivos .xlsx
+playwright>=1.40        # controla Brave / Edge instalados; no hace falta `playwright install`
+psycopg[binary]>=3.1    # conexión a PostgreSQL (Neon) para el respaldo en la nube
+python-dotenv>=1.0      # lee la configuración del archivo .env
